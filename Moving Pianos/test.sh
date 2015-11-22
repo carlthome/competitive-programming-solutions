@@ -1,0 +1,1 @@
+cat ./piano.in | ./piano > temp; diff temp piano.ans -y; rm ./temp;

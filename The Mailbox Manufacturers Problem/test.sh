@@ -1,0 +1,1 @@
+cat ./test.indata | ./mailbox > temp; diff temp test.utdata -y; rm ./temp;

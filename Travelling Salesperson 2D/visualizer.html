@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>TSP</title>
+<style>
+* { margin:0; padding:0; }
+body { font:14px monospace; text-align: center; }
+a { text-decoration:none; color:black; }
+#controls img { width:50%; height:auto; }
+#controls, #plot { position:fixed; overflow:auto; height:100%; }
+#controls { width:18%; padding:1%; left:0; box-shadow:0px 0px 20px rgba(0,0,0,0.25); }
+#plot { width:80%; right:0; border-left:1px solid #ccc; }
+input, textarea { width:90%; vertical-align:top; }
+#overlay { visibility:hidden; position:fixed; z-index:1; top:0; right:0; height:100%; width:100%; background: rgba(255,255,255,0.9); }
+#overlay img { position:absolute; bottom:0; }
+</style>
+<script>
+// Yes, I'm using vanilla js just to annoy you, the reader.
+
+// Utility function for handling 2D coordinates.
+function point(x, y) {
+  this.x = x;
+  this.y = y;
+}
+
+// Start displaying a silly animation.
+function startAnimation() {
+  var l = document.body.clientWidth+100;
+  document.getElementById("salesman").style.left = l+"px";
+  walk = setInterval(function(){
+    if (l < -100) l = document.body.clientWidth+100;
+    l -= 10;
+    document.getElementById("salesman").style.left = l + "px";
+  }, 33);
+  document.getElementById("overlay").style.visibility = 'visible';
+}
+
+// Stop displaying the silly animation.
+function stopAnimation() {
+  document.getElementById("overlay").style.visibility = 'hidden';
+  clearInterval(walk);
+}
+
+// Call solver and display the proposed TSP tour.
+function solve() {
+  startAnimation();
+  var xmlhttp = new XMLHttpRequest();
+  xmlhttp.onreadystatechange = function() {
+    if (xmlhttp.readyState==4 && xmlhttp.status==200) {
+      document.getElementById("output").value = xmlhttp.responseText;
+      plot();
+      stopAnimation();
+      document.getElementById("status").innerHTML = "solved";
+    }
+  }
+  xmlhttp.open("POST", "solve.php", true);
+  xmlhttp.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
+  xmlhttp.send("input="+document.getElementById("input").value);
+}
+
+// Scale the plot.
+var scale = 7; // FOR THE LULZ
+function setScale() {
+  scale = document.getElementById("scale").value;
+  document.getElementById("current_scale").innerHTML = scale;
+  plot();
+}
+
+// Generate a random problem.
+var first_randomize = true;
+function randomize() {
+  if (first_randomize) {
+    document.getElementById("scale").value = 1;
+    setScale();
+    first_randomize = false;
+  }
+
+  var cities = 1000;
+  var input = cities + "\n", output = "";
+  for (var i = 0; i < cities; i++)  {
+    var r = Math.random() * cities;
+    var a = Math.random() * 2 * Math.PI;
+    var x = (r*Math.cos(a) + cities) / 2;
+    var y = (r*Math.sin(a) + cities) / 2;
+    input += x + " " + y + "\n";
+    //output += i + "\n";
+  }
+  document.getElementById("input").value = input;
+  document.getElementById("output").value = output;
+  plot();
+  document.getElementById("status").innerHTML = "unsolved";
+}
+
+// Plot tour.
+function plot() {
+
+  // Clear canvas
+  var c = document.getElementById("c");
+  var ctx = c.getContext("2d");
+
+  // Parse form
+  var maxX = 0;
+  var maxY = 0;
+  var cities = [];
+  var tour = [];
+  var input = document.getElementById("input").value.split("\n"); 
+  for (var i = 0; i < input.length; i++) {
+    var p = input[i].split(" ");
+    var x = parseFloat(p[0]);
+    var y = parseFloat(p[1]);
+    if (isNaN(x) || isNaN(y)) continue;
+    cities.push(new point(x,y));
+    maxX = Math.max(maxX, x);
+    maxY = Math.max(maxY, y);
+  }
+  var output = document.getElementById("output").value.split("\n");
+  for (var i = 0; i < output.length; i++) {
+    var v = parseInt(output[i]);
+    if (isNaN(v)) continue;
+    tour.push(v);
+  }
+  if (tour.length > 0) tour.push(tour[0]); // Close the tour.
+  
+  // Calculate tour length.
+  var length = 0.0;
+  for (var i = 1; i < tour.length; i++) {
+    length += Math.round(Math.sqrt(Math.pow(cities[tour[i-1]].x-cities[tour[i]].x, 2) + Math.pow(cities[tour[i-1]].y-cities[tour[i]].y, 2)));
+  }
+  document.getElementById("length").innerHTML = length;
+  
+  // Validate every city is visited in the tour.
+  var visited = new Array(cities.length);
+  for (var i = 0; i < cities.length; i++) visited[i] = false;
+  for (var i = 0; i < tour.length; i++) visited[tour[i]] = true;
+  var valid = true;
+  for (var i = 0; i < visited.length; i++) if (!visited[i]) valid = false;
+  if (!valid) {
+    document.getElementById("status").innerHTML = "invalid";
+  } else {
+    document.getElementById("status").innerHTML = "valid";
+  }
+
+  // Scale and clear canvas
+  var padding = 20*scale;
+  ctx.canvas.width = 2*padding+scale*(5+maxX);
+  ctx.canvas.height = 2*padding+scale*(5+maxY);
+  ctx.clearRect(0, 0, c.width, c.height);
+  
+  // Plot tour
+  if (tour.length > 0) {
+    ctx.beginPath();
+    for (var i = 0; i < tour.length; i++) {
+      ctx.lineTo(padding+scale*cities[tour[i]].x, padding+scale*cities[tour[i]].y);
+    }
+    ctx.stroke();
+  }
+  
+  // Plot cities
+  if (cities.length > 0) {
+    ctx.font = scale*5 + "px sans-serif";
+    ctx.textAlign = "center"; 
+    ctx.textBaseline = "middle";
+    for (var i = 0; i < cities.length; i++) {
+      var txt = i;
+      var x = padding+scale*cities[i].x;
+      var y = padding+scale*cities[i].y;
+      if (scale > 1) {
+        var width = ctx.measureText(txt).width;       
+        ctx.beginPath();
+        ctx.arc(x, y, 1+width, 0, 2*Math.PI, false);
+        ctx.fillStyle = 'white';
+        ctx.fill();
+        ctx.stroke();
+        ctx.strokeStyle = 'black';
+        ctx.fillStyle = 'black';
+        ctx.fillText(txt, x, y);
+      } else {
+        ctx.beginPath();
+        ctx.arc(x, y, 2, 0, 2 * Math.PI, false);
+        ctx.fillStyle = 'black';
+        ctx.fill();
+      }
+    }
+  }
+}
+</script>
+</head>
+<body onload="plot();">
+  <div id="overlay"><img id="salesman" alt="Salesman" src="salesman.gif" /></div>
+  <div id="controls">
+    <a href="https://kth.kattis.com/problems/oldkattis%3Atsp">
+      <img alt="Salesman" src="salesman.jpg" />
+      <h1>Travelling Salesperson 2D</h1>
+    </a>
+    <br/>
+    <br/>
+    <h2>Tour: <span id="status">unsolved</span></h2>
+    <h2>Distance: <span id="length"></span></h2>
+    <br/>
+    <br/>
+    <input type="submit" value="Generate" onclick="randomize();"/>
+    <br/>
+    <br/>
+    <input type="submit" id="solveButton" value="Solve" onclick="solve();"/>
+    <br/>
+    <br/>
+    Scale (<span id="current_scale">7</span>:1):<br/>
+    <input type="range" min="1" max="10" value="7" id="scale" onchange="setScale();"/>
+    <br/>
+    <br/>
+    Input:<br/>
+    <textarea id="input" onkeyup="plot();">
+10
+95.0129 61.5432
+23.1139 79.1937
+60.6843 92.1813
+48.5982 73.8207
+89.1299 17.6266
+76.2097 40.5706
+45.6468 93.5470
+1.8504 91.6904
+82.1407 41.0270
+44.4703 89.3650
+    </textarea>
+    <br />
+    <br />
+    Output:<br/>
+    <textarea id="output" onkeyup="plot();">
+0
+1
+2
+3
+4
+5
+6
+7
+8
+9
+    </textarea>
+  </div>
+  <div id="plot">
+    <canvas id="c"></canvas>
+  </div>
+</body>
+</html>

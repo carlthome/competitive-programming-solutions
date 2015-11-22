@@ -1,0 +1,1 @@
+cat ./cd.in | ./cd > temp; diff temp cd.ans -y; rm ./temp;

@@ -1,0 +1,1 @@
+cat ./intervalcover.in | ./intervalcover > temp; diff temp intervalcover.ans -y; rm ./temp;

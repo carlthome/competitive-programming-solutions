@@ -1,0 +1,1 @@
+cat ./E.in | ./scrollingsign > temp; diff temp E.ans -y; rm ./temp;

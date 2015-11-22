@@ -1,0 +1,1 @@
+cat ./chineseremainder.in | ./chineseremainder > temp; diff temp chineseremainder.ans -y; rm ./temp;

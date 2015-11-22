@@ -1,0 +1,1 @@
+cat ./getshorty.in | ./getshorty > temp; diff temp getshorty.ans -y; rm ./temp;

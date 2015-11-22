@@ -1,0 +1,1 @@
+cat ./test.indata | ./help2 > temp; diff temp test.utdata -y; rm ./temp;
